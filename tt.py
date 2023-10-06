@@ -136,7 +136,7 @@ def unitloop(classes:list, subclasse:str=None, hierarchy=[]):
                     src = Path('c:/Users/bilel.benmakhlouf/Downloads').glob(dwn[1]+'.zip') 
                     lii = list(src)
                     length = len(lii)
-                    if timespent > 50.0:
+                    if timespent > 5.0:
                         print (f'timeout zip download {uur}')
                         break
                 
@@ -145,7 +145,7 @@ def unitloop(classes:list, subclasse:str=None, hierarchy=[]):
                     zipfil = lii[0]
                     print (f'download ok, zip: {lii}')
                     with zipfile.ZipFile(zipfil, 'r') as zip_ref:
-                        zip_ref.extractall(path=dst)
+                        zip_ref.extractall(path=dst,members=list(filter(lambda x: x[-4::] == '.pdf', zip_ref.namelist())))
                         zip_ref.close()
                         length2 = 0
                         starttime = time.time()
@@ -155,7 +155,7 @@ def unitloop(classes:list, subclasse:str=None, hierarchy=[]):
                             pdfs = dst.glob('*.pdf') 
                             lpdfs =list(pdfs)
                             length2 = len(lpdfs)
-                            if timespent > 50.0:
+                            if timespent > 5.0:
                                 print (f'timeout extract zip {zipfil} into {dst}')
                                 break 
                         else:
