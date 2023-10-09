@@ -10,7 +10,7 @@ from threading import Thread
 from multiprocessing import Process
 import traceback
 
-url = 'https://www.pass-education.fr/auth_telechargement.php?archive_id=165766&type_mime=application/zip&parent_id=165766'
+# url = 'https://www.pass-education.fr/auth_telechargement.php?archive_id=165766&type_mime=application/zip&parent_id=165766'
 # r= requests.get('https://www.pass-education.fr/lois-et-modeles-physique-chimie-premiere-s-1ere-s/')
 # print (r.content.decode("utf-8",errors='ignore'))
 # AAA (3 loops) --> 5eme --> mathematiques-5eme --> problemes-mathematiques-5eme
@@ -51,11 +51,12 @@ regexdwl = re.compile('article\nid\=\"post\-([0-9]{1,10})\".*\nhref\=\"https\:\/
 
 
 def filtering(exception:str, tobefiltered:list, classes:tuple):
+    
     for classe in classes: 
         #print (f'classe {classe}, exception {exception}')
         if classe in tobefiltered:
-            tobefiltered.remove(classe)  
-        
+            tobefiltered.remove(classe)       
+    
     e=exception+'-'+classes[-1]
     if e in tobefiltered:
         tobefiltered.remove(e) 
@@ -90,36 +91,46 @@ def download(url):
 
 
 def sethierarchy(classe, subclasse, hierarchy):
+    #ex subclasse=6eme, classe=Anglais-6eme
+    # subclasse=Anglais, classe=cours-litter-Anglais
+    # subclasse=cours-litter, classe=sou-cour-cours-litter 
     if not subclasse:
-        hierarchy = [classe]
+        hierarchy = ['c:', classe]
     else:
-        index = hierarchy.index(subclasse)
+        #ex subclasse=6eme, classe=Anglais
+        #ex subclasse=Anglais, classe=cours-litter
+        index = hierarchy.index(subclasse) 
         for _n in range(index,len(hierarchy)):
-            hierarchy.pop(index)
-        hierarchy = hierarchy+[subclasse, classe, ]
+            hierarchy.pop(index)       
+        hierarchy = hierarchy+[subclasse, ]
+        print(f'hierarchy {hierarchy}')
+        msgtoremove = '-'+'-'.join(reversed(hierarchy[1::])) 
+        classe  = classe.replace(msgtoremove, '')
+        hierarchy = hierarchy+[classe, ]
 
-    return hierarchy
+    return classe, hierarchy
 
 
 
-classes = ['ce2','cm1','cm2', '6eme', '5eme', '4eme', '3eme', 'seconde-2nde', 'premiere-1ere-s']
-
-classes = ['5eme']
+classes = ['seconde-2nde']#, 'premiere-1ere-s', 'cm2', '6eme' ]
+originhierarchy=[]
 
 def unitloop(classes:list, subclasse:str=None, hierarchy=[]):
     for classe in classes:
-        print (f'\nstart new theme {classe}')
-        hierarchy = sethierarchy(classe, subclasse, hierarchy)
+        originhierarchy.append(classe)
+        print (f'\nstart new theme {classe} subclass {subclasse}')
+        classemodified, hierarchy = sethierarchy(classe, subclasse, hierarchy)
         #print (f'hierarchy {hierarchy}')
+        #print (f'origin hierarchy {originhierarchy}')
         dst = createfolderandgoin(hierarchy)
-        #print (f'destination folder {dst}')
+        print (f'destination folder {dst}')
         urlloop = url.replace('AAA', classe)
         print (f'url {urlloop}')
         time.sleep(2)
         r = requests.get(urlloop)
         newclasses = regex.findall(r.content.decode("utf-8",errors='ignore'))
         #print (f'all sublinks without filter {newclasses}')
-        for exception in exceptions : filtering(exception, newclasses, hierarchy)
+        for exception in exceptions : filtering(exception, newclasses, originhierarchy)
         print (f'\nall sublinks with filter {newclasses}')
         if len(newclasses) == 0: 
             ccontent = r.content.decode("utf-8",errors='ignore')
@@ -136,40 +147,55 @@ def unitloop(classes:list, subclasse:str=None, hierarchy=[]):
                     src = Path('c:/Users/bilel.benmakhlouf/Downloads').glob(dwn[1]+'.zip') 
                     lii = list(src)
                     length = len(lii)
-                    if timespent > 5.0:
-                        print (f'timeout zip download {uur}')
+                    if timespent > 15.0: 
+                        uur = uur.replace(str(dwn[0]), str(int(dwn[0])+1), 1)  
+                        uur = uur.replace('archive', 'attachment')  
+                        uur = uur.replace('zip','pdf')  
+                        print (f'timeout zip download, try with a pdf file {uur}')
+                        download(uur)
+                        time.sleep(2)
+                        src = Path('c:/Users/bilel.benmakhlouf/Downloads').glob('*.pdf') 
+                        lii = list(src)
+                        if len(lii): 
+                            print (f'copy {lii} to {dst}')
+                            shutil.copy(lii[0], dst)
+                        else:
+                            print ('no pdf file downloaded')
                         break
                 
                 else:
-                    time.sleep(1)
+                    time.sleep(2)
                     zipfil = lii[0]
                     print (f'download ok, zip: {lii}')
-                    with zipfile.ZipFile(zipfil, 'r') as zip_ref:
-                        zip_ref.extractall(path=dst,members=list(filter(lambda x: x[-4::] == '.pdf', zip_ref.namelist())))
-                        zip_ref.close()
-                        length2 = 0
-                        starttime = time.time()
-                        while length2 == 0:
+                    try:
+                        with zipfile.ZipFile(zipfil, 'r') as zip_ref:
+                            zip_ref.extractall(path=dst, members=list(filter(lambda x: x[-4::] == '.pdf', zip_ref.namelist())))
+                            zip_ref.close()
+                    except:
+                        traceback.print_exc()
+                    length2 = 0
+                    starttime = time.time()
+                    while length2 == 0:
                             timespent = time.time() - starttime
-                            time.sleep(1)
+                            time.sleep(2)
                             pdfs = dst.glob('*.pdf') 
                             lpdfs =list(pdfs)
                             length2 = len(lpdfs)
-                            if timespent > 5.0:
+                            if timespent > 15.0:
                                 print (f'timeout extract zip {zipfil} into {dst}')
                                 break 
-                        else:
-                            nl = Path('c:/Users/bilel.benmakhlouf/Downloads').glob(dwn[1]+'.zip')
-                            for l in list(nl):
-                                try:
-                                    os.remove(l)
-                                    print (f'file {l} removed')
-                                except:
-                                    traceback.print_exc()
+                        
+                nl = Path('c:/Users/bilel.benmakhlouf/Downloads').glob('*')
+                for l in list(nl):
+                    try:
+                        os.remove(l)
+                        print (f'file {l} removed')
+                    except:
+                        traceback.print_exc()
                 
         
         else:
-            unitloop(newclasses, classe, hierarchy)
+            unitloop(newclasses, classemodified, hierarchy)
 
 
 unitloop(classes,None, hierarchy)
